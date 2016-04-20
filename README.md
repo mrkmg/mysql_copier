@@ -22,10 +22,10 @@ Here is an quick example illustrating copying a database named `db_remote` on a 
       --src-ssh-user user \
       --src-ssh-host remote-server.local.net \
       --src-user root \
-      --src--prompt-pass \
+      --src-prompt-pass \
       --src-db db_remote \
       --dst-user username \
-      --dst-promtp-pass \
+      --dst-prompt-pass \
       --dst-db db_local
       
 ## Full list of options
