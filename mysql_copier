@@ -1,0 +1,266 @@
+#!/bin/bash
+
+##########################################
+#
+# MySQL Copier
+#
+# Created by Kevin Gravier <kevin@mrkmg.com>
+#
+# run with --help to get all options
+#
+##########################################
+
+
+
+
+show_help () {
+	cat << EOF
+$0
+
+Usage $0 --src-database dbfrom --dst-database dbto [other options]
+WHERE opts are as follows
+
+	--help 				Show this help
+
+	--src-use-ssh		Use SSH for source [false]
+	--src-ssh-host ARG	Source SSH Hostname
+	--src-ssh-opts ARG	Extra options to pass to source ssh
+	--src-ssh-user ARG	Source SSH User 
+	--src-host ARG		Source MySQL Host ["localhost"]
+	--src-user ARG		Source MySQL User ["root"]
+	--src-pass ARG		Source MySQL Password
+	--src-prompt-pass	Prompt for Source MySQL Password
+	--src-opts ARG		Source mysqldump options ["--single-transaction --opt"]
+	--src-db ARG		Source MySQL Database
+
+	--dst-use-ssh		Use SSH for destination [false]
+	--dst-ssh-host ARG	Destination SSH Hostname
+	--dst-ssh-opts ARG	Extra options to pass to destination ssh
+	--dst-ssh-user ARG	Destination SSH User
+	--dst-host ARG		Destination MySQL Host ["localhost"]
+	--dst-user ARG		Destination MySQL User ["root"]
+	--dst-pass ARG		Destination MySQL Password
+	--dst-prompt-pass	Prompt for Destination MySQL Password
+	--dst-opts ARG		Destination mysql options
+	--dst-db ARG		Destination MySQL Database
+
+	--buffer-size ARG	Bufer Size ["10m"]
+	--use-gzip			Use gzip on both sides
+EOF
+}
+
+check_for_missing () {
+	if [[ -z "$SRC_DATABASE" || -z "$DST_DATABASE" ]]; then
+		echo "Missing Databases";
+		echo
+		show_help
+		exit 1
+	fi
+}
+
+SRC_NAME=""
+SRC_USE_SSH=false
+SRC_SSH_HOST=""
+SRC_SSH_OPTS=""
+SRC_SSH_USER=""
+SRC_HOST="localhost"
+SRC_USER=root
+SRC_PASS=""
+SRC_PROMPT_PASS=false
+SRC_OPTS="--single-transaction --opt"
+SRC_DATABASE=""
+DST_NAME=""
+DST_USE_SSH=false
+DST_SSH_HOST=""
+DST_SSH_OPTS=""
+DST_SSH_USER=""
+DST_HOST="localhost"
+DST_USER=root
+DST_PASS=""
+DST_PROMPT_PASS=false
+DST_OPTS=""
+DST_DATABASE=""
+BUFFER_SIZE="10m"
+USE_GZIP=false
+
+
+while :; do
+	case $1 in
+		--help) #HELP
+			show_help
+			exit 1
+			;;
+		--src-use-ssh)
+			SRC_USE_SSH=true
+			shift 1
+			;;
+		--src-ssh-host)
+			SRC_SSH_HOST="$2"
+			shift 2
+			;;
+		--src-ssh-opts)
+			SRC_SSH_OPTS="$2"
+			shift 2
+			;;
+		--src-ssh-user)
+			SRC_SSH_USER="$2"
+			shift 2
+			;;
+		--src-host)
+			SRC_HOST="$2"
+			shift 2
+			;;
+		--src-user)
+			SRC_USER="$2"
+			shift 2
+			;;
+		--src-pass)
+			SRC_PASS="$2"
+			shift 2
+			;;
+		--src-prompt-pass)
+			SRC_PROMPT_PASS=true
+			shift 1
+			;;
+		--src-opts)
+			SRC_OPTS="$2"
+			shift 2
+			;;
+		--src-db)
+			SRC_DATABASE="$2"
+			shift 2
+			;;
+		--dst-use-ssh)
+			DST_USE_SSH=true
+			shift 1
+			;;
+		--dst-ssh-host)
+			DST_SSH_HOST="$2"
+			shift 2
+			;;
+		--dst-ssh-opts)
+			DST_SSH_OPTS="$2"
+			shift 2
+			;;
+		--dst-ssh-user)
+			DST_SSH_USER="$2"
+			shift 2
+			;;
+		--dst-host)
+			DST_HOST="$2"
+			shift 2
+			;;
+		--dst-user)
+			DST_USER="$2"
+			shift 2
+			;;
+		--dst-pass)
+			DST_PASS="$2"
+			shift 2
+			;;
+		--dst-prompt-pass)
+			DST_PROMPT_PASS=true
+			shift 1
+			;;
+		--dst-opts)
+			DST_OPTS="$2"
+			shift 2
+			;;
+		--dst-db)
+			DST_DATABASE="$2"
+			shift 2
+			;;
+		--buffer-size)
+			BUFFER_SIZE="$2"
+			shift 2
+			;;
+		--use-gzip)
+			USE_GZIP=true
+			shift 1
+			;;
+		*)
+			if [ -n "$1" ]; then echo "Unknown Option $1."; exit; fi
+			break
+	esac
+done
+
+check_for_missing
+
+
+DUMPER_SCRIPT="mysqldump $DUMPER_SCRIPT $SRC_OPTS"
+
+if [ -n "$SRC_HOST" ]; then
+	DUMPER_SCRIPT="$DUMPER_SCRIPT -h $SRC_HOST"
+	SRC_NAME="$SRC_HOST"
+fi
+if [ -n "$SRC_USER" ]; then
+	DUMPER_SCRIPT="$DUMPER_SCRIPT -u $SRC_USER"
+fi
+if [[ "$SRC_PROMPT_PASS" = true ]]; then
+	read -s -p "Source MySQL Password: " SRC_PASS
+	echo
+fi
+if [ -n "$SRC_PASS" ]; then
+	DUMPER_SCRIPT="$DUMPER_SCRIPT --password=$SRC_PASS"
+fi
+
+DUMPER_SCRIPT="$DUMPER_SCRIPT $SRC_DATABASE"
+SRC_NAME="$SRC_NAME:$SRC_DATABASE"
+
+if [[ "$USE_GZIP" = true ]]; then
+	DUMPER_SCRIPT="$DUMPER_SCRIPT | gzip -c"
+fi
+if [[ "$SRC_USE_SSH" = true ]]; then
+	if [[ -z "$SRC_SSH_HOST" || -z "$SRC_SSH_USER" ]]; then
+		echo "Missing Source SSH Host or User."
+		exit 1
+	fi
+
+	SRC_SSH="ssh $SRC_SSH_OPTS $SRC_SSH_USER@$SRC_SSH_HOST"
+
+	DUMPER_SCRIPT="$SRC_SSH $DUMPER_SCRIPT"
+	SRC_NAME="ssh:$SRC_SSH_HOST($SRC_NAME)"
+fi
+
+WRITER_SCRIPT="mysql $DST_OPTS"
+
+if [ -n "$DST_HOST" ]; then
+	WRITER_SCRIPT="$WRITER_SCRIPT -h $DST_HOST"
+	DST_NAME="$DST_HOST"
+fi
+if [ -n "$DST_USER" ]; then
+	WRITER_SCRIPT="$WRITER_SCRIPT -u $DST_USER"
+fi
+if [[ "$DST_PROMPT_PASS" = true ]]; then
+	read -s -p "Destination MySQL Password: " DST_PASS
+	echo
+fi
+if [ -n "$DST_PASS" ]; then
+	WRITER_SCRIPT="$WRITER_SCRIPT --password=$DST_PASS"
+fi
+if [[ "$USE_GZIP" = true ]]; then
+	WRITER_SCRIPT="gunzip | $WRITER_SCRIPT"
+fi
+
+WRITER_SCRIPT="$WRITER_SCRIPT $DST_DATABASE"
+DST_NAME="$DST_NAME:$DST_DATABASE"
+
+if [[ "$DST_USE_SSH" = true ]]; then
+	if [[ -z "$DST_SSH_HOST" || -z "$DST_SSH_USER" ]]; then
+		echo "Missing DEST SSH Host or User."
+		exit 1
+	fi
+
+	DST_SSH="ssh $DST_SSH_OPTS $DST_SSH_USER@$DST_SSH_HOST"
+
+	WRITER_SCRIPT="$DST_SSH $WRITER_SCRIPT"
+	DST_NAME="ssh:$DST_SSH_HOST($DST_NAME)"
+fi
+
+echo "Copying from $SRC_NAME to $DST_NAME"
+echo ""
+
+eval  "$DUMPER_SCRIPT | \
+pv -N 'Input ' -ctrb -B $BUFFER_SIZE | \
+pv -N 'Output' -ctrb | \
+$WRITER_SCRIPT"
