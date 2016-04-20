@@ -11,7 +11,7 @@ Download the mysql_copier script. Then set it to be executable.
   
 ## Requirements
   
-Both the Source and Destination should have mysql and mysqldump installed. If using SSH, then ssh should be installed as well. The script assumes you have passwordless authentication enabled as ssh prompting for a password does not work properly.
+Both the Source and Destination should have mysql and mysqldump installed. If using SSH, then ssh should be installed as well. The script assumes you have passwordless authentication enabled as ssh prompting for a password does not work properly. You will also need pv installed on the machine that is running mysql_copier.
   
 ## Usage
 
